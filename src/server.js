@@ -3,6 +3,7 @@ const mysql = require('mysql2');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,7 +33,7 @@ conn.connect(error => {
 
 app.get('/users', async (req, res) => {
     try {
-        conn.query('SELECT * FROM users', (error, results) => {
+        conn.query('SELECT * FROM users', async (error, results) => {
             if (error) {
                 res.status(500).send('Erro ao obter dados.');
                 return;
@@ -49,7 +50,7 @@ app.get('/users/:id', async (req, res) => {
     const id = parseInt(req.params.id);
 
     try {
-        conn.query('SELECT * FROM users WHERE ID = ?', [id], (error, results) => {
+        conn.query('SELECT * FROM users WHERE ID = ?', [id], async (error, results) => {
             if (error) {
                 res.status(500).send('Erro ao obter dados.');
                 return;
@@ -71,7 +72,7 @@ app.post('/users', async (req, res) => {
     }    
     
     try {
-        conn.query('INSERT INTO users (nome, email, senha) VALUES (?, ?, ?)', [nome, email, senha], (error, results) => {
+        conn.query('INSERT INTO users (nome, email, senha) VALUES (?, ?, ?)', [nome, email, senha], async (error, results) => {
             if (error) {
                 res.status(500).send('Erro ao inserir um novo usários!');
                 return;
@@ -95,7 +96,7 @@ app.put('/users/:id', async (req, res) => {
     }
 
     try {
-        conn.query('SELECT id FROM users WHERE id = ?', [id], (error, results) => {
+        conn.query('SELECT id FROM users WHERE id = ?', [id], async (error, results) => {
             if (error) {
                 res.status(500).send('Erro ao buscar dados!');
                 return;
@@ -106,7 +107,7 @@ app.put('/users/:id', async (req, res) => {
             }
         });
 
-        conn.query('UPDATE users SET nome = ?, email = ?, senha = ? WHERE id = ?', [nome, email, senha, id], (error, results) => {
+        conn.query('UPDATE users SET nome = ?, email = ?, senha = ? WHERE id = ?', [nome, email, senha, id], async (error, results) => {
             if (error) {
                 res.status(500).send('Erro ao atualizar o usuário');
                 return;
@@ -126,7 +127,7 @@ app.delete('/users/:id', async (req, res) => {
 
     try {
 
-        conn.query('SELECT id FROM users WHERE id = ?', [id], (error, results) => {
+        conn.query('SELECT id FROM users WHERE id = ?', [id], async (error, results) => {
             if (error) {
                 res.status(500).send('Erro ao buscar dados!');
                 return;
@@ -137,7 +138,7 @@ app.delete('/users/:id', async (req, res) => {
             }
         });
 
-        conn.query('DELETE FROM users WHERE id = ?', [id], (error, results) => {
+        conn.query('DELETE FROM users WHERE id = ?', [id], async (error, results) => {
             if (error) {
                 res.status(500).send('Erro ao excluír usuário!');
                 return;
@@ -148,9 +149,91 @@ app.delete('/users/:id', async (req, res) => {
         console.error('Erro ao excluír usuário!' + error.stack);
         res.status(500).send('Erro ao excluír usuário!');
     }
+});
+
+
+app.post('/resgitrar', async (req, res) => {
+    const { nome, email, senha } = req.body;
+
+    if (!nome || !email || !senha) {
+        res.status(400).send('Todos os campos são obrigatórios!');
+        return;
+    }
+
+    try {
+
+        conn.query('SELECT * FROM users WHERE email = ?', [email], async (error, results) => {
+            if (error) {
+                res.status(500).send('Erro ao efetuar o busca!');
+                return;
+            }
+
+            if (results.length > 0) {
+                res.status(409).send('Este e-mail já existe!');
+                return;
+            }
+
+            const senhaHash = await bcrypt.hash(senha, 10);
+
+            conn.query('INSERT INTO users (nome, email, senha) VALUES (?, ?, ?)', [nome, email, senhaHash], async (error, results) => {
+                if (error) {
+                    res.status(500).send('Erro ao efetuar o registro!');
+                    return;
+                }
+                res.status(201).json({ mensagem: 'Registro efetuado com sucesso!', usuario: { id: results.insertId, nome: nome, email: email, senha: senhaHash } });
+            });
+        });
+
+    } catch (error) {
+        console.error('Erro ao efetuar o cadastro!' + error.stack);
+        res.status(500).send('Erro ao efetuar o cadastro!');
+    }
+
+});
+
+app.post('/login', async (req, res) => {
+    const { email, senha } = req.body;
+
+    if (!email || !senha) {
+        res.status(400).send('Todos os campos são obrigatórios!');
+        return;
+    }
+
+    try {
+
+        conn.query('SELECT * FROM users WHERE email = ?', [email], async (error, results) => {
+            if (error) {
+                res.status(500).send('Erro ao buscar informações');
+                return;
+            }
+
+            if (results.length == 0) {
+                res.status(404).send('Usuário não encontrado!');
+                return;
+            }
+
+            if (results.length > 0) {
+                const user = results[0];
+
+                const senhaCorreta = await bcrypt.compare(senha, user.senha);
+
+                if (senhaCorreta) {
+                    res.status(200).send('Usuário Logado com sucesso!');
+                    return;
+                }
+
+                res.status(401).send('Credenciais inválidas!');
+            }
+
+        });
+
+    } catch (error) {
+        console.error('Erro ao efetuar o login!' + error.stack);
+        res.status(500).send('Erro ao efetuar o login!');
+    }
 
 });
 
 app.listen(PORT, () => {
-    console.log(`Servidor rodando em http://localhost:${PORT}`);
+   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
