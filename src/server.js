@@ -63,28 +63,7 @@ app.get('/users/:id', async (req, res) => {
     }
 });
 
-app.post('/users', async (req, res) => {
-    const { nome, email, senha } = req.body;
-
-    if (!nome || !email || !senha) {
-        res.status(400).send('Todos os campos são obrigatórios!');
-        return;
-    }    
-    
-    try {
-        conn.query('INSERT INTO users (nome, email, senha) VALUES (?, ?, ?)', [nome, email, senha], async (error, results) => {
-            if (error) {
-                res.status(500).send('Erro ao inserir um novo usários!');
-                return;
-            }
-            res.status(201).send('Usuário criado com sucesso!');
-        });
-    } catch (error) {
-        console.error('Erro ao inserir um novo usários!' + error.stack);
-        res.status(500).send('Erro ao inserir um novo usários!');
-    }
-
-});
+;
 
 app.put('/users/:id', async (req, res) => {
     const id = parseInt(req.params.id);
@@ -123,7 +102,7 @@ app.put('/users/:id', async (req, res) => {
 });
 
 app.delete('/users/:id', async (req, res) => {
-    const id = parent(req.params.id);
+    const id = parseInt(req.params.id);
 
     try {
 
